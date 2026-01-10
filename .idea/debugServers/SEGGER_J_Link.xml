@@ -5,7 +5,7 @@
       <env />
     </debugger>
     <gdbserver exe="C:\Program Files\SEGGER\JLink_V876\JLinkGDBServerCL.exe" />
-    <console enabled="false" port="2334" />
+    <console port="2334" />
     <target device="nRF52840_xxAA" reset-before="false" />
     <connection port="4444" warmup-ms="500" />
     <swo />
