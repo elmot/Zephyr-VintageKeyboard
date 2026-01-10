@@ -5,6 +5,7 @@
  */
 
 #include "vinkey_usbd.h"
+#include "vinkey_ble.h"
 
 #include <zephyr/kernel.h>
 #include <zephyr/device.h>
@@ -218,6 +219,13 @@ int main(void)
 		}
 	}
 
+	vinkey_ble_init();
+	/*This blocks USB todo remove
+	while (1)
+	{
+		k_msleep(1000);
+	}
+	*/
 	vinkey_usbd = vinkey_usbd_init_device(msg_cb);
 	if (vinkey_usbd == NULL) {
 		LOG_ERR("Failed to initialize USB device");
@@ -285,6 +293,8 @@ int main(void)
 				kb_evt.code, kb_evt.value);
 			continue;
 		}
+
+		vinkey_ble_send_report(report, KB_REPORT_COUNT);
 
 		if (!kb_ready) {
 			LOG_INF("USB HID device is not ready");

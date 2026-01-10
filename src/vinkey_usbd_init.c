@@ -18,10 +18,8 @@ static const char *const blocklist[] = {
 	NULL,
 };
 
-#define CONFIG_VINKEY_USBD_VID (0x16C0)
-#define CONFIG_VINKEY_USBD_PID (0x27DB)
-#define CONFIG_VINKEY_USBD_MANUFACTURER "Elmot.xyz"
-#define CONFIG_VINKEY_USBD_PRODUCT "Elmot Vintage Kbd (Brother AX110 Mod) USB"
+#define CONFIG_VINKEY_USBD_VID (CONFIG_BT_DIS_PNP_VID)
+#define CONFIG_VINKEY_USBD_PID (CONFIG_BT_DIS_PNP_PID)
 #define CONFIG_SAMPLE_USBD_MAX_POWER (125)
 
 /* doc device instantiation start */
@@ -36,8 +34,8 @@ USBD_DEVICE_DEFINE(vinkey_usbd,
 
 /* doc string instantiation start */
 USBD_DESC_LANG_DEFINE(vinkey_lang);
-USBD_DESC_MANUFACTURER_DEFINE(vinkey_mfr, CONFIG_VINKEY_USBD_MANUFACTURER);
-USBD_DESC_PRODUCT_DEFINE(vinkey_product, CONFIG_VINKEY_USBD_PRODUCT);
+USBD_DESC_MANUFACTURER_DEFINE(vinkey_mfr, CONFIG_BT_DIS_MANUF_NAME_STR);
+USBD_DESC_PRODUCT_DEFINE(vinkey_product, CONFIG_BT_DEVICE_NAME);
 IF_ENABLED(CONFIG_HWINFO, (USBD_DESC_SERIAL_NUMBER_DEFINE(vinkey_sn)));
 
 /* doc string instantiation end */
@@ -62,23 +60,7 @@ USBD_CONFIGURATION_DEFINE(vinkey_hs_config,
 static void vinkey_fix_code_triple(struct usbd_context *uds_ctx,
 				   const enum usbd_speed speed)
 {
-	/* Always use class code information from Interface Descriptors */
-	if (IS_ENABLED(CONFIG_USBD_CDC_ACM_CLASS) ||
-	    IS_ENABLED(CONFIG_USBD_CDC_ECM_CLASS) ||
-	    IS_ENABLED(CONFIG_USBD_CDC_NCM_CLASS) ||
-	    IS_ENABLED(CONFIG_USBD_MIDI2_CLASS) ||
-	    IS_ENABLED(CONFIG_USBD_AUDIO2_CLASS) ||
-	    IS_ENABLED(CONFIG_USBD_VIDEO_CLASS)) {
-		/*
-		 * Class with multiple interfaces have an Interface
-		 * Association Descriptor available, use an appropriate triple
-		 * to indicate it.
-		 */
-		usbd_device_set_code_triple(uds_ctx, speed,
-					    USB_BCC_MISCELLANEOUS, 0x02, 0x01);
-	} else {
-		usbd_device_set_code_triple(uds_ctx, speed, 0, 0, 0);
-	}
+	usbd_device_set_code_triple(uds_ctx, speed, 0, 0, 0);
 }
 
 struct usbd_context *vinkey_usbd_setup_device(usbd_msg_cb_t msg_cb)
