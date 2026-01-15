@@ -12,6 +12,7 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/settings/settings.h>
 
+
 #include "vinkey_ble.h"
 
 LOG_MODULE_REGISTER(vinkey_ble, LOG_LEVEL_INF);
@@ -84,7 +85,7 @@ static ssize_t read_input_report(struct bt_conn *conn,
 	return bt_gatt_attr_read(conn, attr, buf, len, offset, NULL, 0);
 }
 
-BT_GATT_SERVICE_DEFINE(hog_svc,
+BT_GATT_SERVICE_DEFINE(kbd_svc,
 	BT_GATT_PRIMARY_SERVICE(BT_UUID_HIDS),
 	BT_GATT_CHARACTERISTIC(BT_UUID_HIDS_INFO, BT_GATT_CHRC_READ,
 			       BT_GATT_PERM_READ, read_info, NULL, &info),
@@ -107,6 +108,7 @@ static const struct bt_data ad[] = {
 			  (CONFIG_BT_DEVICE_APPEARANCE >> 8) & 0xff),
 	BT_DATA_BYTES(BT_DATA_FLAGS, (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR)),
 	BT_DATA_BYTES(BT_DATA_UUID16_ALL, BT_UUID_16_ENCODE(BT_UUID_HIDS_VAL)),
+	BT_DATA(BT_DATA_NAME_SHORTENED, BT_NAME_SHORTENED, sizeof(BT_NAME_SHORTENED)-1)
 };
 
 static const struct bt_data sd[] = {
@@ -176,9 +178,38 @@ BT_CONN_CB_DEFINE(conn_callbacks) = {
 	.recycled = conn_recycled,
 };
 
+static void auth_passkey_display(struct bt_conn *conn, unsigned int passkey)
+{
+	char addr[BT_ADDR_LE_STR_LEN];
+
+	bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
+
+	LOG_INF("Passkey for %s: %06u", addr, passkey);
+}
+
+static void auth_cancel(struct bt_conn *conn)
+{
+	char addr[BT_ADDR_LE_STR_LEN];
+
+	bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
+
+	LOG_INF("Pairing cancelled: %s", addr);
+}
+
+static struct bt_conn_auth_cb auth_cb_display = {
+	.passkey_display = auth_passkey_display,
+	.passkey_entry = NULL,
+	.cancel = auth_cancel,
+};
+
 void vinkey_ble_init(void)
 {
 	int err;
+
+	err = bt_passkey_set(4321);
+	if (err) {
+		LOG_ERR("Failed to set fixed passkey (err %d)", err);
+	}
 
 	err = bt_enable(NULL);
 	if (err) {
@@ -192,17 +223,13 @@ void vinkey_ble_init(void)
 		settings_load();
 	}
 
-	/* 'Just Works' pairing is default when no callbacks are provided or
-	 * when IO capabilities are set to No Input No Output.
-	 * Zephyr's default is No Input No Output if not configured otherwise.
-	 */
-	bt_conn_auth_cb_register(NULL);
+	bt_conn_auth_cb_register(&auth_cb_display);
 
 	advertising_start();
 }
 
 void vinkey_ble_send_report(const uint8_t *report, uint16_t len)
 {
-	/* Index 5 is the report characteristic in hog_svc */
-	bt_gatt_notify(NULL, &hog_svc.attrs[5], report, len);
+	/* Index 6 is the report characteristic value in kbd_svc */
+	bt_gatt_notify(NULL, &kbd_svc.attrs[6], report, len);
 }

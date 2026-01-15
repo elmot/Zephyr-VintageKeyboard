@@ -4,3 +4,6 @@
 
 void vinkey_ble_init(void);
 void vinkey_ble_send_report(const uint8_t *report, uint16_t len);
+
+//todo move to Kconfig
+#define BT_NAME_SHORTENED "ElmVntKbd"
