@@ -1,0 +1,11 @@
+
+
+menu "Vintage Keyboard sample options"
+
+config BT_NAME_SHORTENED
+	string "Bluetooth advertisement short name"
+	default "ElmVntKbd"
+
+endmenu
+
+source "Kconfig.zephyr"
