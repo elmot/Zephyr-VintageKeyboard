@@ -15,6 +15,8 @@
 
 #include "vinkey_ble.h"
 
+#include "zephyr/usb/class/usbd_hid.h"
+
 LOG_MODULE_REGISTER(vinkey_ble, LOG_LEVEL_INF);
 
 #define HIDS_NORMALLY_CONNECTABLE BIT(1)
@@ -45,6 +47,11 @@ enum {
 static struct hids_report input_report_ref = {
 	.id = 0x00,
 	.type = HIDS_INPUT,
+};
+
+static struct hids_report output_report_ref = {
+	.id = 0x00,
+	.type = HIDS_OUTPUT,
 };
 
 static const uint8_t report_map[] = HID_KEYBOARD_REPORT_DESC();
@@ -85,6 +92,18 @@ static ssize_t read_input_report(struct bt_conn *conn,
 	return bt_gatt_attr_read(conn, attr, buf, len, offset, NULL, 0);
 }
 
+static ssize_t write_output_report(struct bt_conn *conn,
+				  const struct bt_gatt_attr *attr,
+				  const void *buf, uint16_t len, uint16_t offset,
+				  uint8_t flags)
+{
+	LOG_INF("HIDS output report write: len %u", len);
+
+	kb_set_report(NULL, HID_REPORT_TYPE_OUTPUT, 0, len, buf);
+
+	return len;
+}
+
 BT_GATT_SERVICE_DEFINE(kbd_svc,
 	BT_GATT_PRIMARY_SERVICE(BT_UUID_HIDS),
 	BT_GATT_CHARACTERISTIC(BT_UUID_HIDS_INFO, BT_GATT_CHRC_READ,
@@ -99,6 +118,14 @@ BT_GATT_SERVICE_DEFINE(kbd_svc,
 		    BT_GATT_PERM_READ_ENCRYPT | BT_GATT_PERM_WRITE_ENCRYPT),
 	BT_GATT_DESCRIPTOR(BT_UUID_HIDS_REPORT_REF, BT_GATT_PERM_READ,
 			   read_report_ref, NULL, &input_report_ref),
+	BT_GATT_CHARACTERISTIC(BT_UUID_HIDS_REPORT,
+			       BT_GATT_CHRC_READ | BT_GATT_CHRC_WRITE |
+			       BT_GATT_CHRC_WRITE_WITHOUT_RESP,
+			       BT_GATT_PERM_READ_ENCRYPT |
+			       BT_GATT_PERM_WRITE_ENCRYPT,
+			       read_input_report, write_output_report, NULL),
+	BT_GATT_DESCRIPTOR(BT_UUID_HIDS_REPORT_REF, BT_GATT_PERM_READ,
+			   read_report_ref, NULL, &output_report_ref),
 );
 
 static const struct bt_data ad[] = {
@@ -202,7 +229,7 @@ static struct bt_conn_auth_cb auth_cb_display = {
 	.cancel = auth_cancel,
 };
 
-void vinkey_ble_init(void)
+void vinkey_ble_init()
 {
 	int err;
 

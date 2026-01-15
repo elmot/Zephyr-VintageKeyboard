@@ -87,7 +87,7 @@ static int kb_get_report(const struct device *dev,
 	return 0;
 }
 
-static int kb_set_report(const struct device *dev,
+int kb_set_report(const struct device *dev,
 			 const uint8_t type, const uint8_t id, const uint16_t len,
 			 const uint8_t *const buf)
 {
@@ -127,7 +127,7 @@ static void kb_set_protocol(const struct device *dev, const uint8_t proto)
 		proto == 0U ? "Boot Protocol" : "Report Protocol");
 }
 
-static void kb_output_report(const struct device *dev, const uint16_t len,
+void kb_output_report(const struct device *dev, const uint16_t len,
 			     const uint8_t *const buf)
 {
 	LOG_HEXDUMP_DBG(buf, len, "o.r.");
