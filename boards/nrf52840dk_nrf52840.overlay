@@ -4,7 +4,7 @@
 // Junie: I have identified the i2c1 pins in the devicetree as P0.30 (SDA) and P0.31 (SCL).
 &i2c1 {
 	status = "okay";
-
+	clock-frequency = < 400000 >;
 	sx1509b: sx1509b@3e {
 		compatible = "semtech,sx1509b";
 		reg = <0x3e>;
@@ -43,10 +43,10 @@
 					<&sx1509b 7 GPIO_ACTIVE_LOW>;
 		/* Use continuous scanning since GPIO expander interrupts may not be available */
 		idle-mode = "scan";
-		poll-period-ms = <5>;
+		poll-period-ms = <0>;
 		poll-timeout-ms = <0>;
-		debounce-down-ms = <5>;
-		debounce-up-ms = <5>;
+		debounce-down-ms = <0>;
+		debounce-up-ms = <0>;
 	};
 
 	/* No on-expander LEDs defined to avoid conflicts with matrix columns */
