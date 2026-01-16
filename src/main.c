@@ -302,6 +302,9 @@ int main(void)
 
 		k_msgq_get(&kb_msgq, &kb_evt, K_FOREVER);
 
+		uint8_t hid_code = input_to_hid(kb_evt.code, kb_evt.value);
+		vinkey_ble_handle_key(hid_code, kb_evt.value);
+
 		update_report(kb_evt.code, kb_evt.value);
 
 		vinkey_ble_send_report(report, KB_REPORT_COUNT);

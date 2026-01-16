@@ -1,7 +1,6 @@
 #include <zephyr/types.h>
 #include <stddef.h>
 #include <string.h>
-#include <errno.h>
 #include <zephyr/kernel.h>
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/bluetooth/hci.h>
@@ -142,6 +141,8 @@ static const struct bt_data sd[] = {
 	BT_DATA(BT_DATA_NAME_COMPLETE, CONFIG_BT_DEVICE_NAME, (sizeof(CONFIG_BT_DEVICE_NAME) - 1)),
 };
 
+static struct bt_conn *current_conn;
+
 static void connected(struct bt_conn *conn, uint8_t err)
 {
 	char addr[BT_ADDR_LE_STR_LEN];
@@ -154,6 +155,7 @@ static void connected(struct bt_conn *conn, uint8_t err)
 	}
 
 	LOG_INF("Connected %s", addr);
+	current_conn = bt_conn_ref(conn);
 }
 
 bool advertising_start()
@@ -177,6 +179,10 @@ static void disconnected(struct bt_conn *conn, uint8_t reason)
 	bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
 
 	LOG_INF("Disconnected from %s (reason %u)", addr, reason);
+	if (current_conn == conn) {
+		bt_conn_unref(current_conn);
+		current_conn = NULL;
+	}
 }
 
 static void security_changed(struct bt_conn *conn, bt_security_t level,
@@ -205,6 +211,10 @@ BT_CONN_CB_DEFINE(conn_callbacks) = {
 	.recycled = conn_recycled,
 };
 
+static uint32_t passkey_entered;
+static uint8_t passkey_digit_count;
+static bool passkey_entry_mode;
+
 static void auth_passkey_display(struct bt_conn *conn, unsigned int passkey)
 {
 	char addr[BT_ADDR_LE_STR_LEN];
@@ -214,6 +224,18 @@ static void auth_passkey_display(struct bt_conn *conn, unsigned int passkey)
 	LOG_INF("Passkey for %s: %06u", addr, passkey);
 }
 
+static void auth_passkey_entry(struct bt_conn *conn)
+{
+	char addr[BT_ADDR_LE_STR_LEN];
+
+	bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
+
+	LOG_INF("Enter passkey for %s", addr);
+	passkey_entered = 0;
+	passkey_digit_count = 0;
+	passkey_entry_mode = true;
+}
+
 static void auth_cancel(struct bt_conn *conn)
 {
 	char addr[BT_ADDR_LE_STR_LEN];
@@ -221,22 +243,53 @@ static void auth_cancel(struct bt_conn *conn)
 	bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
 
 	LOG_INF("Pairing cancelled: %s", addr);
+	passkey_entry_mode = false;
 }
 
 static struct bt_conn_auth_cb auth_cb_display = {
 	.passkey_display = auth_passkey_display,
-	.passkey_entry = NULL,
+	.passkey_entry = auth_passkey_entry,
 	.cancel = auth_cancel,
 };
+
+void vinkey_ble_handle_key(uint8_t hid_code, bool pressed)
+{
+	if (!pressed || !passkey_entry_mode || !current_conn) {
+		return;
+	}
+
+	if (hid_code >= HID_KEY_1 && hid_code <= HID_KEY_0) {
+		/* Numbers 1-9 then 0 */
+		uint8_t digit;
+		if (hid_code == HID_KEY_0) {
+			digit = 0;
+		} else {
+			digit = hid_code - HID_KEY_1 + 1;
+		}
+
+		if (passkey_digit_count < 6) {
+			passkey_entered = passkey_entered * 10 + digit;
+			passkey_digit_count++;
+			LOG_INF("Passkey digit entered: %u (total: %u)", digit, passkey_entered);
+		}
+	} else if (hid_code == HID_KEY_ENTER) {
+		/* Enter */
+		LOG_INF("Passkey submitted: %06u", passkey_entered);
+		bt_conn_auth_passkey_entry(current_conn, passkey_entered);
+		passkey_entry_mode = false;
+	} else if (hid_code == HID_KEY_BACKSPACE) {
+		/* Backspace */
+		if (passkey_digit_count > 0) {
+			passkey_entered /= 10;
+			passkey_digit_count--;
+			LOG_INF("Passkey digit removed (total: %u)", passkey_entered);
+		}
+	}
+}
 
 void vinkey_ble_init()
 {
 	int err;
-
-	err = bt_passkey_set(4321);
-	if (err) {
-		LOG_ERR("Failed to set fixed passkey (err %d)", err);
-	}
 
 	err = bt_enable(NULL);
 	if (err) {
