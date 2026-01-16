@@ -18,7 +18,10 @@
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(main, LOG_LEVEL_INF);
 
-static const uint8_t hid_report_desc[] = HID_KEYBOARD_REPORT_DESC();
+#include <zephyr/dt-bindings/input/input-event-codes.h>
+
+extern uint8_t input_to_hid(uint16_t code);
+extern bool is_modifier(uint16_t code);
 
 enum kb_leds_idx {
 	KB_LED_NUMLOCK = 0,
@@ -53,19 +56,76 @@ struct kb_event {
 K_MSGQ_DEFINE(kb_msgq, sizeof(struct kb_event), 2, 1);
 
 UDC_STATIC_BUF_DEFINE(report, KB_REPORT_COUNT);
+
+static const uint8_t hid_report_desc[] = HID_KEYBOARD_REPORT_DESC();
+
+
+static void update_report(uint16_t code, int32_t value)
+{
+	uint8_t hid_code = input_to_hid(code);
+	LOG_RAW("KeyCode/Value %02x:%04x\n\r",code,value);
+	if (hid_code == 0) {
+		return;
+	}
+
+	if (is_modifier(code)) {
+		if (value) {
+			report[KB_MOD_KEY] |= hid_code;
+		} else {
+			report[KB_MOD_KEY] &= ~hid_code;
+		}
+	} else {
+		if (value) {
+			/* Add to report */
+			for (int i = KB_KEY_CODE1; i < KB_REPORT_COUNT; i++) {
+				if (report[i] == 0) {
+					report[i] = hid_code;
+					break;
+				}
+			}
+		} else {
+			/* Remove from report */
+			for (int i = KB_KEY_CODE1; i < KB_REPORT_COUNT; i++) {
+				if (report[i] == hid_code) {
+					report[i] = 0;
+					/* Shift remaining keys left */
+					for (int j = i; j < KB_REPORT_COUNT - 1; j++) {
+						report[j] = report[j+1];
+					}
+					report[KB_REPORT_COUNT - 1] = 0;
+					break;
+				}
+			}
+		}
+	}
+}
 static uint32_t kb_duration;
 static bool kb_ready;
 
+static void update_report(uint16_t code, int32_t value);
+
+static int matrix_row = -1;
+static int matrix_col = -1;
+
 static void input_cb(struct input_event *evt, void *user_data)
 {
-	struct kb_event kb_evt;
-
 	ARG_UNUSED(user_data);
 
-	kb_evt.code = evt->code;
-	kb_evt.value = evt->value;
-	if (k_msgq_put(&kb_msgq, &kb_evt, K_NO_WAIT) != 0) {
-		LOG_ERR("Failed to put new input event");
+	if (evt->code == INPUT_ABS_X) {
+		matrix_col = evt->value;
+	} else if (evt->code == INPUT_ABS_Y) {
+		matrix_row = evt->value;
+	} else if (evt->code == INPUT_BTN_TOUCH) {
+		if (matrix_row >= 0 && matrix_col >= 0) {
+			uint16_t code = (matrix_row << 8) | matrix_col;
+			struct kb_event kb_evt = {
+				.code = code,
+				.value = evt->value,
+			};
+			if (k_msgq_put(&kb_msgq, &kb_evt, K_NO_WAIT) != 0) {
+				LOG_ERR("Failed to put new input event");
+			}
+		}
 	}
 }
 
@@ -220,12 +280,6 @@ int main(void)
 	}
 
 	vinkey_ble_init();
-	/*This blocks USB todo remove
-	while (1)
-	{
-		k_msleep(1000);
-	}
-	*/
 	vinkey_usbd = vinkey_usbd_init_device(msg_cb);
 	if (vinkey_usbd == NULL) {
 		LOG_ERR("Failed to initialize USB device");
@@ -249,50 +303,7 @@ int main(void)
 
 		k_msgq_get(&kb_msgq, &kb_evt, K_FOREVER);
 
-		switch (kb_evt.code) {
-		case INPUT_KEY_0:
-			if (kb_evt.value) {
-				report[KB_KEY_CODE1] = HID_KEY_NUMLOCK;
-			} else {
-				report[KB_KEY_CODE1] = 0;
-			}
-
-			break;
-		case INPUT_KEY_1:
-			if (kb_evt.value) {
-				report[KB_KEY_CODE2] = HID_KEY_CAPSLOCK;
-			} else {
-				report[KB_KEY_CODE2] = 0;
-			}
-
-			break;
-		case INPUT_KEY_2:
-			if (kb_evt.value) {
-				report[KB_KEY_CODE3] = HID_KEY_SCROLLLOCK;
-			} else {
-				report[KB_KEY_CODE3] = 0;
-			}
-
-			break;
-		case INPUT_KEY_3:
-			if (kb_evt.value) {
-				report[KB_MOD_KEY] = HID_KBD_MODIFIER_RIGHT_ALT;
-				report[KB_KEY_CODE4] = HID_KEY_1;
-				report[KB_KEY_CODE5] = HID_KEY_2;
-				report[KB_KEY_CODE6] = HID_KEY_3;
-			} else {
-				report[KB_MOD_KEY] = HID_KBD_MODIFIER_NONE;
-				report[KB_KEY_CODE4] = 0;
-				report[KB_KEY_CODE5] = 0;
-				report[KB_KEY_CODE6] = 0;
-			}
-
-			break;
-		default:
-			LOG_INF("Unrecognized input code %u value %d",
-				kb_evt.code, kb_evt.value);
-			continue;
-		}
+		update_report(kb_evt.code, kb_evt.value);
 
 		vinkey_ble_send_report(report, KB_REPORT_COUNT);
 
