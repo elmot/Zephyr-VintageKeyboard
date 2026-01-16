@@ -20,7 +20,7 @@ LOG_MODULE_REGISTER(main, LOG_LEVEL_INF);
 
 #include <zephyr/dt-bindings/input/input-event-codes.h>
 
-extern uint8_t input_to_hid(uint16_t code);
+extern uint8_t input_to_hid(uint16_t code, int32_t value);
 extern bool is_modifier(uint16_t code);
 
 enum kb_leds_idx {
@@ -62,8 +62,7 @@ static const uint8_t hid_report_desc[] = HID_KEYBOARD_REPORT_DESC();
 
 static void update_report(uint16_t code, int32_t value)
 {
-	uint8_t hid_code = input_to_hid(code);
-	LOG_RAW("KeyCode/Value %02x:%04x\n\r",code,value);
+	uint8_t hid_code = input_to_hid(code, value);
 	if (hid_code == 0) {
 		return;
 	}
@@ -308,13 +307,13 @@ int main(void)
 		vinkey_ble_send_report(report, KB_REPORT_COUNT);
 
 		if (!kb_ready) {
-			LOG_INF("USB HID device is not ready");
+//			LOG_INF("USB HID device is not ready");
 			continue;
 		}
 
 		ret = hid_device_submit_report(hid_dev, KB_REPORT_COUNT, report);
 		if (ret) {
-			LOG_ERR("HID submit report error, %d", ret);
+//			LOG_ERR("HID submit report error, %d", ret);
 		}
 	}
 
