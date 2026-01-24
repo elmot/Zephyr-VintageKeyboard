@@ -172,6 +172,8 @@ uint8_t input_to_hid(uint16_t code, int32_t value)
             break;
         case HID_KEY_D: hid_code = HID_KEY_RIGHT;
             break;
+        case HID_KEY_V: hid_code = HID_KEY_HASH;
+            break;
         }
     }
     return hid_code;
