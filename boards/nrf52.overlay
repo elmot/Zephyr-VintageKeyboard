@@ -1,0 +1,60 @@
+#include <zephyr/dt-bindings/input/input-event-codes.h>
+#include <zephyr/dt-bindings/input/keymap.h>
+#include "../hid.overlay"
+
+&i2c1 {
+	status = "okay";
+	clock-frequency = <400000>;
+
+	sx1509b: sx1509b@3e {
+		compatible = "semtech,sx1509b";
+		reg = <0x3e>;
+		/* Optional interrupt and reset GPIOs — adjust per your wiring
+		 * int-gpios = <&gpio0 11 GPIO_ACTIVE_LOW>;
+		 * reset-gpios = <&gpio0 12 GPIO_ACTIVE_LOW>;
+		 */
+		label = "SX1509B";
+		gpio-controller;
+		#gpio-cells = <2>;
+		ngpios = <16>;
+	};
+};
+
+/ {
+
+	/* Keyboard scan matrix on SX1509B: currently 3 rows x 2 cols enabled */
+	kscan0: kscan {
+		compatible = "gpio-kbd-matrix";
+		/* Rows are inputs with pull-ups; active when driven low by a pressed key */
+		row-gpios = <&sx1509b 8 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>,
+					<&sx1509b 9 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>,
+					<&sx1509b 10 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>,
+					<&sx1509b 11 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>,
+					<&sx1509b 12 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>,
+					<&sx1509b 13 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>,
+					<&sx1509b 14 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>,
+					<&sx1509b 15 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
+		/* Cols are outputs, driven low one at a time during scan */
+		col-gpios = <&sx1509b 0 GPIO_ACTIVE_LOW>,
+					<&sx1509b 1 GPIO_ACTIVE_LOW>,
+					<&sx1509b 2 GPIO_ACTIVE_LOW>,
+					<&sx1509b 3 GPIO_ACTIVE_LOW>,
+					<&sx1509b 4 GPIO_ACTIVE_LOW>,
+					<&sx1509b 5 GPIO_ACTIVE_LOW>,
+					<&sx1509b 6 GPIO_ACTIVE_LOW>,
+					<&sx1509b 7 GPIO_ACTIVE_LOW>;
+		/* Use continuous scanning since GPIO expander interrupts may not be available */
+		idle-mode = "scan";
+		poll-period-ms = <0>;
+		poll-timeout-ms = <0>;
+		debounce-down-ms = <0>;
+		debounce-up-ms = <0>;
+	};
+
+	aliases {
+		caps-lock-led = &caps_lock_led;
+		pwr-on-led = &pwr_on_led;
+		ble-connected-led = &ble_connected_led;
+		usb-connected-led = &usb_connected_led;
+	};
+};
