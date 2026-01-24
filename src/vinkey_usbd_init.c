@@ -35,7 +35,7 @@ USBD_DEVICE_DEFINE(vinkey_usbd,
 /* doc string instantiation start */
 USBD_DESC_LANG_DEFINE(vinkey_lang);
 USBD_DESC_MANUFACTURER_DEFINE(vinkey_mfr, CONFIG_BT_DIS_MANUF_NAME_STR);
-USBD_DESC_PRODUCT_DEFINE(vinkey_product, CONFIG_BT_DEVICE_NAME);
+USBD_DESC_PRODUCT_DEFINE(vinkey_product, CONFIG_BT_DEVICE_NAME "[USB]");
 IF_ENABLED(CONFIG_HWINFO, (USBD_DESC_SERIAL_NUMBER_DEFINE(vinkey_sn)));
 
 /* doc string instantiation end */
