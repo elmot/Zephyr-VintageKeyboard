@@ -133,8 +133,7 @@ static const struct bt_data ad[] = {
 			  (CONFIG_BT_DEVICE_APPEARANCE >> 0) & 0xff,
 			  (CONFIG_BT_DEVICE_APPEARANCE >> 8) & 0xff),
 	BT_DATA_BYTES(BT_DATA_FLAGS, (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR)),
-	BT_DATA_BYTES(BT_DATA_UUID16_ALL, BT_UUID_16_ENCODE(BT_UUID_HIDS_VAL)),
-	BT_DATA(BT_DATA_NAME_SHORTENED, CONFIG_BT_NAME_SHORTENED, sizeof(CONFIG_BT_NAME_SHORTENED)-1)
+	BT_DATA_BYTES(BT_DATA_UUID16_ALL, BT_UUID_16_ENCODE(BT_UUID_HIDS_VAL))
 };
 
 static const struct bt_data sd[] = {
@@ -142,6 +141,9 @@ static const struct bt_data sd[] = {
 };
 
 static struct bt_conn *current_conn;
+
+volatile bool ble_kb_ready = false;
+
 
 static void connected(struct bt_conn *conn, uint8_t err)
 {
@@ -156,15 +158,18 @@ static void connected(struct bt_conn *conn, uint8_t err)
 
 	LOG_INF("Connected %s", addr);
 	current_conn = bt_conn_ref(conn);
+	ble_kb_ready = true;
+	update_connect_status();
 }
 
+extern void failure(void);
 bool advertising_start()
 {
 	bt_le_adv_stop();
-	int err = bt_le_adv_start(BT_LE_ADV_CONN_FAST_1, ad, ARRAY_SIZE(ad), sd,ARRAY_SIZE(sd));
+	const int err = bt_le_adv_start(BT_LE_ADV_CONN_FAST_1, ad, ARRAY_SIZE(ad), sd,ARRAY_SIZE(sd));
 	if (err) {
 		LOG_ERR("Advertising failed to start (err %d)", err);
-		return true;
+		failure();
 	}
 
 	LOG_INF("Advertising successfully started");
@@ -192,7 +197,7 @@ static void security_changed(struct bt_conn *conn, bt_security_t level,
 
 	bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
 
-	if (!err) {
+	if (!err) { // NOLINT(*-branch-clone)
 		LOG_INF("Security changed: %s level %u", addr, level);
 	} else {
 		LOG_ERR("Security failed: %s level %u err %d", addr, level, err);
@@ -201,6 +206,8 @@ static void security_changed(struct bt_conn *conn, bt_security_t level,
 
 void conn_recycled()
 {
+	ble_kb_ready = false;
+	update_connect_status();
 	advertising_start();
 }
 

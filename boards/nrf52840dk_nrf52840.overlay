@@ -4,7 +4,8 @@
 // Junie: I have identified the i2c1 pins in the devicetree as P0.30 (SDA) and P0.31 (SCL).
 &i2c1 {
 	status = "okay";
-	clock-frequency = < 400000 >;
+	clock-frequency = <400000>;
+
 	sx1509b: sx1509b@3e {
 		compatible = "semtech,sx1509b";
 		reg = <0x3e>;
@@ -20,6 +21,7 @@
 };
 
 / {
+
 	/* Keyboard scan matrix on SX1509B: currently 3 rows x 2 cols enabled */
 	kscan0: kscan {
 		compatible = "gpio-kbd-matrix";
@@ -49,9 +51,49 @@
 		debounce-up-ms = <0>;
 	};
 
-	/* No on-expander LEDs defined to avoid conflicts with matrix columns */
+	/* Create a grouping for your custom LEDs */
+	ext_leds {
+		compatible = "gpio-leds";
 
+		caps_lock_led: caps_lock_led {
+			gpios = <&gpio0 13 GPIO_ACTIVE_LOW>;
+			label = "External LED 0";
+		};
+
+		ext_led1: led_1 {
+			gpios = <&gpio0 15 GPIO_ACTIVE_LOW>;
+			label = "External LED 1";
+		};
+
+		ext_led2: led_2 {
+			gpios = <&gpio0 17 GPIO_ACTIVE_LOW>;
+			label = "External LED 2";
+		};
+
+		pwr_on_led: pwr_on_led {
+//			gpios = <&gpio0 20 GPIO_ACTIVE_LOW>;
+			gpios = <&gpio1 11 GPIO_ACTIVE_LOW>;
+			label = "PWR LED";
+		};
+
+		ble_connected_led: ble_connected_led {
+//			gpios = <&gpio0 22 GPIO_ACTIVE_LOW>;
+			gpios = <&gpio1 10 GPIO_ACTIVE_LOW>;
+			label = "BLE LED";
+		};
+
+		usb_connected_led: usb_connected_led {
+//			gpios = <&gpio0 24 GPIO_ACTIVE_LOW>;
+			gpios = <&gpio1 12 GPIO_ACTIVE_LOW>;
+			label = "USB LED";
+		};
+	};
+	
+	/* Create aliases so we can refer to them easily in C code (led0, led1...) */
 	aliases {
-		mybutton = &button0;
+		caps-lock-led = &caps_lock_led;
+		pwr-on-led = &pwr_on_led;
+		ble-connected-led = &ble_connected_led;
+		usb-connected-led = &usb_connected_led;
 	};
 };

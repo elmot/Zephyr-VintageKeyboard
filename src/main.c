@@ -16,6 +16,7 @@
 #include <zephyr/usb/class/usbd_hid.h>
 
 #include <zephyr/logging/log.h>
+#include <hal/nrf_power.h>
 LOG_MODULE_REGISTER(main, LOG_LEVEL_INF);
 
 #include <zephyr/dt-bindings/input/input-event-codes.h>
@@ -23,18 +24,11 @@ LOG_MODULE_REGISTER(main, LOG_LEVEL_INF);
 extern uint8_t input_to_hid(uint16_t code, int32_t value);
 extern bool is_modifier(uint16_t code);
 
-enum kb_leds_idx {
-	KB_LED_NUMLOCK = 0,
-	KB_LED_CAPSLOCK,
-	KB_LED_SCROLLLOCK,
-	KB_LED_COUNT,
-};
 
-static const struct gpio_dt_spec kb_leds[KB_LED_COUNT] = {
-	GPIO_DT_SPEC_GET_OR(DT_ALIAS(led0), gpios, {0}),
-	GPIO_DT_SPEC_GET_OR(DT_ALIAS(led1), gpios, {0}),
-	GPIO_DT_SPEC_GET_OR(DT_ALIAS(led2), gpios, {0}),
-};
+static const struct gpio_dt_spec caps_lock_led = GPIO_DT_SPEC_GET(DT_ALIAS(caps_lock_led), gpios);
+static const struct gpio_dt_spec pwr_on_led = GPIO_DT_SPEC_GET(DT_ALIAS(pwr_on_led), gpios);
+static const struct gpio_dt_spec ble_connected_led = GPIO_DT_SPEC_GET(DT_ALIAS(ble_connected_led), gpios);
+static const struct gpio_dt_spec usb_connected_led = GPIO_DT_SPEC_GET(DT_ALIAS(usb_connected_led), gpios);
 
 enum kb_report_idx {
 	KB_MOD_KEY = 0,
@@ -99,9 +93,7 @@ static void update_report(uint16_t code, int32_t value)
 	}
 }
 static uint32_t kb_duration;
-static bool kb_ready;
-
-static void update_report(uint16_t code, int32_t value);
+volatile static bool usb_kb_ready = false;
 
 static int matrix_row = -1;
 static int matrix_col = -1;
@@ -130,11 +122,19 @@ static void input_cb(struct input_event *evt, void *user_data)
 
 INPUT_CALLBACK_DEFINE(NULL, input_cb, NULL);
 
+void update_connect_status()
+{
+	gpio_pin_set_dt(&usb_connected_led, usb_kb_ready);
+	gpio_pin_set_dt(&ble_connected_led, ble_kb_ready);
+	gpio_pin_set_dt(&pwr_on_led, !(ble_kb_ready || usb_kb_ready));
+	}
+
 static void kb_iface_ready(const struct device *dev, const bool ready)
 {
 	LOG_INF("HID device %s interface is %s",
 		dev->name, ready ? "ready" : "not ready");
-	kb_ready = ready;
+	usb_kb_ready = ready;
+	update_connect_status();
 }
 
 static int kb_get_report(const struct device *dev,
@@ -155,14 +155,7 @@ int kb_set_report(const struct device *dev,
 		return -ENOTSUP;
 	}
 
-	for (unsigned int i = 0; i < ARRAY_SIZE(kb_leds); i++) {
-		if (kb_leds[i].port == NULL) {
-			continue;
-		}
-
-		(void)gpio_pin_set_dt(&kb_leds[i], buf[0] & BIT(i));
-	}
-
+	gpio_pin_set_dt(&caps_lock_led, buf[0] & (int)BIT(1));
 	return 0;
 }
 
@@ -227,43 +220,98 @@ static void msg_cb(struct usbd_context *const usbd_ctx,
 		}
 	}
 }
-/* doc device msg-cb end */
 
-int main(void)
-{
-	struct usbd_context *vinkey_usbd;
-	const struct device *hid_dev;
-	int ret;
+/**
+ * @brief Ensures that the output voltage is set to the specified value.
+ *
+ * This method checks whether the REGOUT0 configuration corresponds to the specified voltage.
+ * If the configuration differs, it reconfigures the voltage setting in the UICR (User Information Configuration Registers),
+ * programs the change, and resets the system to apply the new setting.
+ *
+ * Available UICR_REGOUT0_VOUT values:
+ * - UICR_REGOUT0_VOUT_1V8  (0) - 1.8V
+ * - UICR_REGOUT0_VOUT_2V1  (1) - 2.1V
+ * - UICR_REGOUT0_VOUT_2V4  (2) - 2.4V
+ * - UICR_REGOUT0_VOUT_2V7  (3) - 2.7V
+ * - UICR_REGOUT0_VOUT_3V0  (4) - 3.0V
+ * - UICR_REGOUT0_VOUT_3V3  (5) - 3.3V
+ *
+ * @param voltage The desired output voltage to be configured. The value should match the UICR register's expected format.
+ */
+void ensure_voltage(unsigned long voltage) {
+	// Check if REGOUT0 is NOT set to 3.3V (Value 5)
+	if ((NRF_UICR->REGOUT0 & UICR_REGOUT0_VOUT_Msk) !=
+		(voltage << UICR_REGOUT0_VOUT_Pos))
+	{
+		// Enable Write to NVMC
+		NRF_NVMC->CONFIG = NVMC_CONFIG_WEN_Wen;
+		while (NRF_NVMC->READY == NVMC_READY_READY_Busy){}
 
-	for (unsigned int i = 0; i < ARRAY_SIZE(kb_leds); i++) {
-		if (kb_leds[i].port == NULL) {
-			continue;
-		}
+		// Set REGOUT0 to 3.0V
+		NRF_UICR->REGOUT0 = (NRF_UICR->REGOUT0 & ~UICR_REGOUT0_VOUT_Msk) |
+							(voltage << UICR_REGOUT0_VOUT_Pos);
 
-		if (!gpio_is_ready_dt(&kb_leds[i])) {
-			LOG_ERR("LED device %s is not ready", kb_leds[i].port->name);
-			return -EIO;
-		}
+		NRF_NVMC->CONFIG = NVMC_CONFIG_WEN_Ren;
+		while (NRF_NVMC->READY == NVMC_READY_READY_Busy){}
 
-		ret = gpio_pin_configure_dt(&kb_leds[i], GPIO_OUTPUT_INACTIVE);
-		if (ret != 0) {
-			LOG_ERR("Failed to configure the LED pin, %d", ret);
-			return -EIO;
-		}
+		// A System Reset is required for the change to take effect
+		NVIC_SystemReset();
 	}
+}
 
-	hid_dev = DEVICE_DT_GET_ONE(zephyr_hid_device);
-	if (!device_is_ready(hid_dev)) {
-		LOG_ERR("HID Device is not ready");
+static int prepare_led(const struct gpio_dt_spec* led, bool active)
+{
+	if (!gpio_is_ready_dt(led))
+	{
+		LOG_ERR("LED device %s is not ready", led->port->name);
 		return -EIO;
 	}
 
-	ret = hid_device_register(hid_dev,
-				  hid_report_desc, sizeof(hid_report_desc),
-				  &kb_ops);
+	int ret = gpio_pin_configure_dt(led, active ? GPIO_OUTPUT_ACTIVE : GPIO_OUTPUT_INACTIVE);
+	if (ret != 0)
+	{
+		LOG_ERR("Failed to configure the %s pin, %d", led->port->name, ret);
+		return -EIO;
+	}
+	return 0;
+}
+
+_Noreturn void failure()
+{
+	while (true) {
+		gpio_pin_set_dt(&pwr_on_led, true);
+		gpio_pin_set_dt(&usb_connected_led, false);
+		gpio_pin_set_dt(&ble_connected_led, false);
+		k_sleep(K_MSEC(250));
+		gpio_pin_set_dt(&pwr_on_led, false);
+		gpio_pin_set_dt(&usb_connected_led, true);
+		gpio_pin_set_dt(&ble_connected_led, false);
+		k_sleep(K_MSEC(500));
+		gpio_pin_set_dt(&pwr_on_led, false);
+		gpio_pin_set_dt(&usb_connected_led, false);
+		gpio_pin_set_dt(&ble_connected_led, true);
+		k_sleep(K_MSEC(250));
+	}
+}
+int main(void)
+{
+	ensure_voltage(UICR_REGOUT0_VOUT_3V0);
+	prepare_led(&pwr_on_led, true);
+	prepare_led(&caps_lock_led, false);
+	prepare_led(&ble_connected_led, false);
+	prepare_led(&usb_connected_led, false);
+	const struct device* hid_dev = DEVICE_DT_GET_ONE(zephyr_hid_device);
+	if (!device_is_ready(hid_dev)) {
+		LOG_ERR("HID Device is not ready");
+		failure();
+	}
+
+	int ret = hid_device_register(hid_dev,
+	                              hid_report_desc, sizeof(hid_report_desc),
+	                              &kb_ops);
 	if (ret != 0) {
 		LOG_ERR("Failed to register HID Device, %d", ret);
-		return ret;
+		failure();
 	}
 
 	if (IS_ENABLED(CONFIG_USBD_HID_SET_POLLING_PERIOD)) {
@@ -279,10 +327,10 @@ int main(void)
 	}
 
 	vinkey_ble_init();
-	vinkey_usbd = vinkey_usbd_init_device(msg_cb);
+	struct usbd_context* vinkey_usbd = vinkey_usbd_init_device(msg_cb);
 	if (vinkey_usbd == NULL) {
 		LOG_ERR("Failed to initialize USB device");
-		return -ENODEV;
+		failure();
 	}
 
 	if (!usbd_can_detect_vbus(vinkey_usbd)) {
@@ -290,13 +338,14 @@ int main(void)
 		ret = usbd_enable(vinkey_usbd);
 		if (ret) {
 			LOG_ERR("Failed to enable device support");
-			return ret;
+			failure();
 		}
 		/* doc device enable end */
 	}
 
 	LOG_INF("HID keyboard is initialized");
 
+	// ReSharper disable once CppDFAEndlessLoop
 	while (true) {
 		struct kb_event kb_evt;
 
@@ -309,7 +358,7 @@ int main(void)
 
 		vinkey_ble_send_report(report, KB_REPORT_COUNT);
 
-		if (!kb_ready) {
+		if (!usb_kb_ready) {
 //			LOG_INF("USB HID device is not ready");
 			continue;
 		}
@@ -320,5 +369,4 @@ int main(void)
 		}
 	}
 
-	return 0;
 }
