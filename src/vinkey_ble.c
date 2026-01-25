@@ -162,7 +162,6 @@ static void connected(struct bt_conn *conn, uint8_t err)
 	update_connect_status();
 }
 
-extern void failure(void);
 bool advertising_start()
 {
 	bt_le_adv_stop();
@@ -183,7 +182,7 @@ static void disconnected(struct bt_conn *conn, uint8_t reason)
 
 	bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
 
-	LOG_INF("Disconnected from %s (reason %u)", addr, reason);
+	LOG_INF("Disconnected from %s (reason %x)", addr, reason);
 	if (current_conn == conn) {
 		bt_conn_unref(current_conn);
 		current_conn = NULL;

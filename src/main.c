@@ -10,27 +10,23 @@ LOG_MODULE_REGISTER(main, LOG_LEVEL_INF);
 
 #include <zephyr/dt-bindings/input/input-event-codes.h>
 
-enum kb_report_idx {
-	KB_MOD_KEY = 0,
-	KB_RESERVED,
-	KB_KEY_CODE1,
-	KB_KEY_CODE2,
-	KB_KEY_CODE3,
-	KB_KEY_CODE4,
-	KB_KEY_CODE5,
-	KB_KEY_CODE6,
-	KB_REPORT_COUNT,
-};
+#define KEYS_PER_REPORT (6)
+
+struct kb_report {
+	uint8_t modifier;
+	uint8_t reserved;
+	uint8_t keys[KEYS_PER_REPORT];
+} __packed;
 
 struct kb_event {
 	uint16_t code;
 	int32_t value;
 };
 
-K_MSGQ_DEFINE(usb_msgq, KB_REPORT_COUNT, 10, 4);
-K_MSGQ_DEFINE(ble_msgq, KB_REPORT_COUNT, 10, 4);
+K_MSGQ_DEFINE(usb_msgq, sizeof(struct kb_report), 10, 4);
+K_MSGQ_DEFINE(ble_msgq, sizeof(struct kb_report), 10, 4);
 
-UDC_STATIC_BUF_DEFINE(report, KB_REPORT_COUNT);
+static struct kb_report report;
 
 static const uint8_t hid_report_desc[] = HID_KEYBOARD_REPORT_DESC();
 
@@ -45,29 +41,29 @@ static void update_report(uint16_t code, int32_t value)
 
 	if (is_modifier(code)) {
 		if (value) {
-			report[KB_MOD_KEY] |= hid_code;
+			report.modifier |= hid_code;
 		} else {
-			report[KB_MOD_KEY] &= ~hid_code;
+			report.modifier &= ~hid_code;
 		}
 	} else {
 		if (value) {
 			/* Add to report */
-			for (int i = KB_KEY_CODE1; i < KB_REPORT_COUNT; i++) {
-				if (report[i] == 0) {
-					report[i] = hid_code;
+			for (int i = 0; i < KEYS_PER_REPORT; i++) {
+				if (report.keys[i] == 0) {
+					report.keys[i] = hid_code;
 					break;
 				}
 			}
 		} else {
 			/* Remove from report */
-			for (int i = KB_KEY_CODE1; i < KB_REPORT_COUNT; i++) {
-				if (report[i] == hid_code) {
-					report[i] = 0;
+			for (int i = 0; i < KEYS_PER_REPORT; i++) {
+				if (report.keys[i] == hid_code) {
+					report.keys[i] = 0;
 					/* Shift remaining keys left */
-					for (int j = i; j < KB_REPORT_COUNT - 1; j++) {
-						report[j] = report[j+1];
+					for (int j = i; j < (KEYS_PER_REPORT-1); j++) {
+						report.keys[j] = report.keys[j+1];
 					}
-					report[KB_REPORT_COUNT - 1] = 0;
+					report.keys[KEYS_PER_REPORT - 1] = 0;
 					break;
 				}
 			}
@@ -93,8 +89,8 @@ static void input_cb(struct input_event *evt, void *user_data)
 
 			update_report(code, evt->value);
 
-			k_msgq_put(&usb_msgq, report, K_NO_WAIT);
-			k_msgq_put(&ble_msgq, report, K_NO_WAIT);
+			k_msgq_put(&usb_msgq, &report, K_NO_WAIT);
+			k_msgq_put(&ble_msgq, &report, K_NO_WAIT);
 		}
 	}
 }
@@ -172,23 +168,23 @@ typedef int (*send_report_fn)(const uint8_t *report);
 
 static _Noreturn void kb_usb_send_task(void *p1, void *p2, void *p3)
 {
-	static uint8_t queued_report[KB_REPORT_COUNT];
+	static struct kb_report queued_report;
 
 	while (true) {
-		k_msgq_get(&usb_msgq, queued_report, K_FOREVER);
+		k_msgq_get(&usb_msgq, &queued_report, K_FOREVER);
 		if (usb_kb_ready) {
-			hid_device_submit_report(hid_dev, KB_REPORT_COUNT, report);
+			hid_device_submit_report(hid_dev, sizeof(struct kb_report), (uint8_t *)&queued_report);
 		}
 	}
 }
 
 static _Noreturn void kb_ble_send_task(void *p1, void *p2, void *p3)
 {
-	uint8_t queued_report[KB_REPORT_COUNT];
+	static struct kb_report queued_report;
 
 	while (true) {
-		k_msgq_get(&ble_msgq, queued_report, K_FOREVER);
-		vinkey_ble_send_report(report, KB_REPORT_COUNT);
+		k_msgq_get(&ble_msgq, &queued_report, K_FOREVER);
+		vinkey_ble_send_report((uint8_t *)&queued_report, sizeof(struct kb_report));
 	}
 }
 
