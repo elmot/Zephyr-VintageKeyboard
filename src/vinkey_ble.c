@@ -12,7 +12,7 @@
 #include <zephyr/settings/settings.h>
 
 
-#include "vinkey_ble.h"
+#include "main.h"
 
 #include "zephyr/usb/class/usbd_hid.h"
 

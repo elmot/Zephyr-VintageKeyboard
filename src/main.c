@@ -5,7 +5,7 @@
  */
 
 #include "vinkey_usbd.h"
-#include "vinkey_ble.h"
+#include "main.h"
 
 #include <zephyr/kernel.h>
 #include <zephyr/device.h>
