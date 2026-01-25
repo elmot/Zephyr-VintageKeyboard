@@ -7,21 +7,40 @@ const struct gpio_dt_spec usb_connected_led = GPIO_DT_SPEC_GET(DT_ALIAS(usb_conn
 
 LOG_MODULE_REGISTER(hw, LOG_LEVEL_INF);
 
+static void busy_wait_cycles(uint32_t cycles)
+{
+    // Simple busy-wait loop
+    // Each iteration takes approximately 4 cycles (load, decrement, compare, branch)
+    for (volatile uint32_t i = 0; i < cycles / 4; i++)
+    {
+        __asm__ volatile ("nop");
+    }
+}
+
+static void busy_wait_ms(uint32_t ms)
+{
+    // At 32MHz: 32,000 cycles per millisecond
+    uint32_t cycles = ms * 32000;
+    busy_wait_cycles(cycles);
+}
+
 _Noreturn void failure()
 {
-    while (true) {
+    while (true)
+    {
         gpio_pin_set_dt(&pwr_on_led, true);
         gpio_pin_set_dt(&usb_connected_led, false);
         gpio_pin_set_dt(&ble_connected_led, false);
-        k_sleep(K_MSEC(250));
+
+        busy_wait_ms(250);
         gpio_pin_set_dt(&pwr_on_led, false);
         gpio_pin_set_dt(&usb_connected_led, true);
         gpio_pin_set_dt(&ble_connected_led, false);
-        k_sleep(K_MSEC(500));
+        busy_wait_ms(500);
         gpio_pin_set_dt(&pwr_on_led, false);
         gpio_pin_set_dt(&usb_connected_led, false);
         gpio_pin_set_dt(&ble_connected_led, true);
-        k_sleep(K_MSEC(250));
+        busy_wait_ms(250);
     }
 }
 
@@ -97,4 +116,10 @@ void update_connect_status()
     gpio_pin_set_dt(&usb_connected_led, usb_kb_ready);
     gpio_pin_set_dt(&ble_connected_led, ble_kb_ready);
     gpio_pin_set_dt(&pwr_on_led, !(ble_kb_ready || usb_kb_ready));
+}
+
+_Noreturn void arch_system_halt(unsigned int reason)
+{
+    ARG_UNUSED(reason);
+    failure();
 }
