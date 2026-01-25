@@ -23,16 +23,18 @@ enum kb_report_idx {
 };
 
 struct kb_event {
-ccccccccccccffdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd	uint16_t code;
+	uint16_t code;
 	int32_t value;
 };
 
-K_MSGQ_DEFINE(kb_msgq, KB_REPORT_COUNT, 10, 1);
+K_MSGQ_DEFINE(usb_msgq, KB_REPORT_COUNT, 10, 4);
+K_MSGQ_DEFINE(ble_msgq, KB_REPORT_COUNT, 10, 4);
 
 UDC_STATIC_BUF_DEFINE(report, KB_REPORT_COUNT);
 
 static const uint8_t hid_report_desc[] = HID_KEYBOARD_REPORT_DESC();
 
+const struct device* hid_dev = DEVICE_DT_GET_ONE(zephyr_hid_device);
 
 static void update_report(uint16_t code, int32_t value)
 {
@@ -91,9 +93,8 @@ static void input_cb(struct input_event *evt, void *user_data)
 
 			update_report(code, evt->value);
 
-			if (k_msgq_put(&kb_msgq, report, K_NO_WAIT) != 0) {
-				LOG_ERR("Failed to put new report");
-			}
+			k_msgq_put(&usb_msgq, report, K_NO_WAIT);
+			k_msgq_put(&ble_msgq, report, K_NO_WAIT);
 		}
 	}
 }
@@ -167,10 +168,36 @@ struct hid_device_ops kb_ops = {
 	.output_report = kb_output_report,
 };
 
+typedef int (*send_report_fn)(const uint8_t *report);
+
+static _Noreturn void kb_usb_send_task(void *p1, void *p2, void *p3)
+{
+	static uint8_t queued_report[KB_REPORT_COUNT];
+
+	while (true) {
+		k_msgq_get(&usb_msgq, queued_report, K_FOREVER);
+		if (usb_kb_ready) {
+			hid_device_submit_report(hid_dev, KB_REPORT_COUNT, report);
+		}
+	}
+}
+
+static _Noreturn void kb_ble_send_task(void *p1, void *p2, void *p3)
+{
+	uint8_t queued_report[KB_REPORT_COUNT];
+
+	while (true) {
+		k_msgq_get(&ble_msgq, queued_report, K_FOREVER);
+		vinkey_ble_send_report(report, KB_REPORT_COUNT);
+	}
+}
+
+K_THREAD_DEFINE(usb_task_tid, 1024, kb_usb_send_task, NULL, NULL, NULL, 7, 0, 0);
+K_THREAD_DEFINE(ble_task_tid, 1024, kb_ble_send_task, NULL, NULL, NULL, 7, 0, 0);
+
 int main(void)
 {
 	init_hardware();
-	const struct device* hid_dev = DEVICE_DT_GET_ONE(zephyr_hid_device);
 	if (!device_is_ready(hid_dev)) {
 		LOG_ERR("HID Device is not ready");
 		failure();
@@ -200,23 +227,5 @@ int main(void)
 	vinkey_usb_init();
 	LOG_INF("HID keyboard is initialized");
 
-	// ReSharper disable once CppDFAEndlessLoop
-	while (true) {
-		uint8_t queued_report[KB_REPORT_COUNT];
-
-		k_msgq_get(&kb_msgq, queued_report, K_FOREVER);
-
-		vinkey_ble_send_report(queued_report, KB_REPORT_COUNT);
-
-		if (!usb_kb_ready) {
-//			LOG_INF("USB HID device is not ready");
-			continue;
-		}
-
-		ret = hid_device_submit_report(hid_dev, KB_REPORT_COUNT, queued_report);
-		if (ret) {
-//			LOG_ERR("HID submit report error, %d", ret);
-		}
-	}
-
+	return 0;
 }
