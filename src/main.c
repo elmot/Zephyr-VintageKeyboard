@@ -23,11 +23,11 @@ enum kb_report_idx {
 };
 
 struct kb_event {
-	uint16_t code;
+ccccccccccccffdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd	uint16_t code;
 	int32_t value;
 };
 
-K_MSGQ_DEFINE(kb_msgq, sizeof(struct kb_event), 2, 1);
+K_MSGQ_DEFINE(kb_msgq, KB_REPORT_COUNT, 10, 1);
 
 UDC_STATIC_BUF_DEFINE(report, KB_REPORT_COUNT);
 
@@ -88,12 +88,11 @@ static void input_cb(struct input_event *evt, void *user_data)
 	} else if (evt->code == INPUT_BTN_TOUCH) {
 		if (matrix_row >= 0 && matrix_col >= 0) {
 			uint16_t code = (matrix_row << 8) | matrix_col;
-			struct kb_event kb_evt = {
-				.code = code,
-				.value = evt->value,
-			};
-			if (k_msgq_put(&kb_msgq, &kb_evt, K_NO_WAIT) != 0) {
-				LOG_ERR("Failed to put new input event");
+
+			update_report(code, evt->value);
+
+			if (k_msgq_put(&kb_msgq, report, K_NO_WAIT) != 0) {
+				LOG_ERR("Failed to put new report");
 			}
 		}
 	}
@@ -203,23 +202,18 @@ int main(void)
 
 	// ReSharper disable once CppDFAEndlessLoop
 	while (true) {
-		struct kb_event kb_evt;
+		uint8_t queued_report[KB_REPORT_COUNT];
 
-		k_msgq_get(&kb_msgq, &kb_evt, K_FOREVER);
+		k_msgq_get(&kb_msgq, queued_report, K_FOREVER);
 
-		uint8_t hid_code = input_to_hid(kb_evt.code, kb_evt.value);
-		vinkey_ble_handle_key(hid_code, kb_evt.value);
-
-		update_report(kb_evt.code, kb_evt.value);
-
-		vinkey_ble_send_report(report, KB_REPORT_COUNT);
+		vinkey_ble_send_report(queued_report, KB_REPORT_COUNT);
 
 		if (!usb_kb_ready) {
 //			LOG_INF("USB HID device is not ready");
 			continue;
 		}
 
-		ret = hid_device_submit_report(hid_dev, KB_REPORT_COUNT, report);
+		ret = hid_device_submit_report(hid_dev, KB_REPORT_COUNT, queued_report);
 		if (ret) {
 //			LOG_ERR("HID submit report error, %d", ret);
 		}
