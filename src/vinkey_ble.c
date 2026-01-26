@@ -300,7 +300,7 @@ void vinkey_ble_init()
 	err = bt_enable(NULL);
 	if (err) {
 		LOG_ERR("Bluetooth init failed (err %d)", err);
-		return;
+		failure();
 	}
 
 	LOG_INF("Bluetooth initialized");
