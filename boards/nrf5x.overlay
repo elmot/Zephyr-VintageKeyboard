@@ -56,5 +56,6 @@
 		pwr-on-led = &pwr_on_led;
 		ble-connected-led = &ble_connected_led;
 		usb-connected-led = &usb_connected_led;
+		kscan = &kscan0;
 	};
 };

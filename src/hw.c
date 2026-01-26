@@ -45,6 +45,7 @@ _Noreturn void failure()
 }
 
 
+#ifdef NRF52840_XXAA
 /**
  * @brief Ensures that the output voltage is set to the specified value.
  *
@@ -62,26 +63,78 @@ _Noreturn void failure()
  *
  * @param voltage The desired output voltage to be configured. The value should match the UICR register's expected format.
  */
-static void ensure_voltage(unsigned long voltage) {
-    // Check if REGOUT0 is NOT set to 3.3V (Value 5)
+static void ensure_voltage(unsigned long voltage)
+{
+    // Check if REGOUT0 is NOT correct
     if ((NRF_UICR->REGOUT0 & UICR_REGOUT0_VOUT_Msk) !=
         (voltage << UICR_REGOUT0_VOUT_Pos))
     {
         // Enable Write to NVMC
         NRF_NVMC->CONFIG = NVMC_CONFIG_WEN_Wen;
-        while (NRF_NVMC->READY == NVMC_READY_READY_Busy){}
+        while (NRF_NVMC->READY == NVMC_READY_READY_Busy)
+        {
+        }
 
         // Set REGOUT0 to 3.0V
         NRF_UICR->REGOUT0 = (NRF_UICR->REGOUT0 & ~UICR_REGOUT0_VOUT_Msk) |
-                            (voltage << UICR_REGOUT0_VOUT_Pos);
+            (voltage << UICR_REGOUT0_VOUT_Pos);
 
         NRF_NVMC->CONFIG = NVMC_CONFIG_WEN_Ren;
-        while (NRF_NVMC->READY == NVMC_READY_READY_Busy){}
+        while (NRF_NVMC->READY == NVMC_READY_READY_Busy)
+        {
+        }
 
         // A System Reset is required for the change to take effect
         NVIC_SystemReset();
     }
 }
+#endif
+
+#ifdef NRF5340_XXAA_APPLICATION
+/**
+ * @brief Ensures that the output voltage is set to the specified value.
+ *
+ * This method checks whether the VREGHVOUT configuration corresponds to the specified voltage.
+ * If the configuration differs, it reconfigures the voltage setting in the UICR (User Information Configuration Registers),
+ * programs the change, and resets the system to apply the new setting.
+ *
+ * Available UICR_VREGHVOUT_VREGHVOUT values for nRF5340:
+ * - UICR_VREGHVOUT_VREGHVOUT_1V8  (0) - 1.8V
+ * - UICR_VREGHVOUT_VREGHVOUT_2V1  (1) - 2.1V
+ * - UICR_VREGHVOUT_VREGHVOUT_2V4  (2) - 2.4V
+ * - UICR_VREGHVOUT_VREGHVOUT_2V7  (3) - 2.7V
+ * - UICR_VREGHVOUT_VREGHVOUT_3V0  (4) - 3.0V
+ * - UICR_VREGHVOUT_VREGHVOUT_3V3  (5) - 3.3V
+ *
+ * @param voltage The desired output voltage to be configured. The value should match the UICR register's expected format.
+ */
+static void ensure_voltage(unsigned long voltage)
+{
+    // Check if VREGHVOUT is NOT correct
+    if ((NRF_UICR->VREGHVOUT & UICR_VREGHVOUT_VREGHVOUT_Msk) !=
+        (voltage << UICR_VREGHVOUT_VREGHVOUT_Pos))
+    {
+        // Enable Write to NVMC
+        NRF_NVMC->CONFIG = NVMC_CONFIG_WEN_Wen;
+        while (NRF_NVMC->READY == NVMC_READY_READY_Busy)
+        {
+        }
+
+        // Set VREGHVOUT to the desired voltage
+        NRF_UICR->VREGHVOUT = (NRF_UICR->VREGHVOUT & ~UICR_VREGHVOUT_VREGHVOUT_Msk) |
+            (voltage << UICR_VREGHVOUT_VREGHVOUT_Pos);
+
+        NRF_NVMC->CONFIG = NVMC_CONFIG_WEN_Ren;
+        while (NRF_NVMC->READY == NVMC_READY_READY_Busy)
+        {
+        }
+
+        // A System Reset is required for the change to take effect
+        NVIC_SystemReset();
+    }
+}
+#endif
+
 
 static int prepare_led(const struct gpio_dt_spec* led, bool active)
 {
@@ -103,7 +156,14 @@ static int prepare_led(const struct gpio_dt_spec* led, bool active)
 
 void init_hardware()
 {
+#ifdef NRF52840_XXAA
     ensure_voltage(UICR_REGOUT0_VOUT_3V0);
+#endif
+#ifdef NRF5340_XXAA_APPLICATION
+    ensure_voltage(UICR_VREGHVOUT_VREGHVOUT_3V0);
+#endif
+
+
     prepare_led(&pwr_on_led, true);
     prepare_led(&caps_lock_led, false);
     prepare_led(&ble_connected_led, false);
