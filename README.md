@@ -5,44 +5,54 @@ It uses the Zephyr RTOS to handle USB device stacks, BLE advertising, and input 
 
 ## Hardware
 
-**Board:** Nordic Semiconductor nRF52840-DK 
+Designed to run on boards like the **nrf52840dk**, **nrf52840dongle**, and [**nrf5340dk**](#nrf5340-only).
 
-**GPIO extender:** Semtech SX1509B
+The following table describes the pinout for each supported board.
 
-| Component         | Pin                 |
-|-------------------|---------------------|
-| **I2C SCL**       | **P0.30**           |
-| **I2C SDA**       | **P0.31**           |
-| **NUM LOCK LED**  | **LED1**, **P0.14** |
-| **CAPS LOCK LED** | **LED2**, **P0.13** |
+### Pinout
 
-## Key Features
+| Function             | nRF52840-DK | nRF52840-DONGLE | nRF5340-DK (cpuapp) |
+|----------------------|-------------|-----------------|---------------------|
+| **I2C SCL**          | **P0.31**   | **P0.31**       | **P1.03**           |
+| **I2C SDA**          | **P0.30**   | **P0.29**       | **P1.02**           |
+| **CAPS LOCK LED**    | **P0.13**   | **P0.13**       | **P0.13**           |
+| **PWR LED**          | **P1.11**   | **P0.20**       | **P1.11**           |
+| **BLE LED**          | **P1.10**   | **P0.22**       | **P1.10**           |
+| **USB LED**          | **P1.12**   | **P0.24**       | **P1.12**           |
+| LED 1(not used yet)  | P0.14       | P0.15           | P0.15               |
+| LED 2(not used yet)  | P0.15       | P0.17           | P0.17               |
+
+**GPIO extender:** Semtech SX1509B (connected via I2C)
+
+### Key Features
 - **Dual Connectivity**: Supports both USB HID and BLE HID.
 - **Dynamic Key Mapping**: Translates raw scan codes into standard HID key codes.
 - **Modifier Support**: Handles standard modifiers (Shift, Ctrl, Alt) and special function keys.
 - **Blue Alt Mode**: A custom function layer activated by a specific key.
 
-## Keys Functionality
-
-The key mapping is defined in `src/ax110keys.c`. It maps raw 16-bit scan codes to HID key codes.
-
 ## Blue Alt Layer
 
-When the **<span style="color:#4682B4">ALT</alt>** key is pressed and held, several keys change their functionality to provide common modern keyboard features that might be missing from the vintage layout.
+When the blue **<span style="color:#4682B4">ALT</alt>** key is pressed and held, several keys change their 
+functionality to provide common modern keyboard features that are missing from the vintage layout.
 
-| Original Key (Nordic layout)                           | Function       | Blue <span style="color:#4682B4">ALT</span> Function | 
-|--------------------------------------------------------|----------------|------------------------------------------------------|
-| **<span style="color:green">L IND</span>**             | **TAB**        | **ESC**                                              | 
-| **<span style="color:green">CODE</span>**              | **Left CTRL**  | **Left CTRL**                                        | 
-| **1,2,..., 0**                                         | **1,2,..., 0** | **F1 - F10**                                         | 
-| Top row **?,`**                                        | **/,`*         | **F11, F12**                                         | 
-| **RELOC**                                              | **PG UP**      | **HOME**                                             | 
-| **INDEX/<span style="color:green">REV</span>**         | **PG DOWN**    | **END**                                              | 
-| **W**                                                  | **W**          | **UP**                                               | 
-| **A**                                                  | **A**          | **LEFT**                                             | 
-| **S**                                                  | **S**          | **DOWN**                                             | 
-| **D**                                                  | **D**          | **RIGHT**                                            | 
-| **WORD OUT/<span style="color:green">LINE OUT</span>** | **ALT**        | **ALT**                                              | 
+| Original Key (Nordic layout)                           | Function      | Blue <span style="color:#4682B4">ALT</span> Function | 
+|--------------------------------------------------------|---------------|------------------------------------------------------|
+| **<span style="color:green">L IND</span>**             | **TAB**       | **ESC**                                              | 
+| **<span style="color:green">CODE</span>**              | **Left CTRL** | **Left CTRL**                                        | 
+| **1,2 ... 0**                                          | **1,2 ... 0** | **F1 - F10**                                         | 
+| Top row **?** ,**`**                                   | **/**, **`**  | **F11, F12**                                         | 
+| **RELOC**                                              | **PG UP**     | **HOME**                                             | 
+| **INDEX/<span style="color:green">REV</span>**         | **PG DOWN**   | **END**                                              | 
+| **W**                                                  | **W**         | **UP**                                               | 
+| **A**                                                  | **A**         | **LEFT**                                             | 
+| **S**                                                  | **S**         | **DOWN**                                             | 
+| **D**                                                  | **D**         | **RIGHT**                                            | 
+| **V**                                                  | **V**         | **~**                                                | 
+| **WORD OUT/<span style="color:green">LINE OUT</span>** | **ALT**       | **ALT**                                              | 
+
+### Keys Functionality
+
+The key mapping is defined in [`src/ax110keys.c`](src/ax110keys.c). It maps raw 16-bit scan codes to HID key codes.
 
 ## Build and Flash
 
@@ -53,4 +63,22 @@ west build -b <board_name>
 west flash
 ```
 
-Designed to run on boards like the `nrf52840dk_nrf52840`.
+## nRF5340 only
+
+### Flashing Network Core 
+
+On the nRF5340-DK, you must also flash the network core with the Bluetooth controller firmware.
+
+1. Build the network core image (usually located in a `build_net` directory):
+   1. Linux/MacOS 
+      ```bash
+      west build -b nrf5340dk/nrf5340/cpunet -d build_net $ZEPHYR_BASE/samples/bluetooth/hci_ipc
+      ```
+   2. Windows PowerShell
+      ```powershell
+      west build -b nrf5340dk/nrf5340/cpunet -d build_net $env:ZEPHYR_BASE/samples/bluetooth/hci_ipc
+      ```
+2. Flash the network core:
+   ```bash
+   west flash -d build_net
+   ```
