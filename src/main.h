@@ -15,6 +15,7 @@ extern const struct gpio_dt_spec ble_connected_led;
 extern const struct gpio_dt_spec usb_connected_led;
 
 _Noreturn void failure();
+_Noreturn void key_scan_failure();
 void init_hardware();
 
 typedef void (*vinkey_ble_output_report_cb_t)(const uint8_t *report, uint16_t len);

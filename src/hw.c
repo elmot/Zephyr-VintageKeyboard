@@ -26,16 +26,44 @@ static void busy_wait_ms(uint32_t ms)
 
 _Noreturn void failure()
 {
+    gpio_pin_set_dt(&pwr_on_led, false);
+    gpio_pin_set_dt(&usb_connected_led, false);
+    gpio_pin_set_dt(&ble_connected_led, false);
+
     while (true)
     {
-        gpio_pin_set_dt(&pwr_on_led, true);
-        gpio_pin_set_dt(&usb_connected_led, false);
+        //RED SOS pattern
+        for (int i = 0; i < 3; i++)
+        {
+            gpio_pin_set_dt(&usb_connected_led, true);
+            busy_wait_ms(100);
+            gpio_pin_set_dt(&usb_connected_led, false);
+            busy_wait_ms(100);
+        }
+        busy_wait_ms(200);
+        for (int i = 0; i < 3; i++)
+        {
+            gpio_pin_set_dt(&usb_connected_led, true);
+            busy_wait_ms(200);
+            gpio_pin_set_dt(&usb_connected_led, false);
+            busy_wait_ms(200);
+        }
+        busy_wait_ms(200);
+    }
+}
+
+_Noreturn void key_scan_failure()
+{
+    while (true)
+    {
+        gpio_pin_set_dt(&pwr_on_led, false);
+        gpio_pin_set_dt(&usb_connected_led, true);
         gpio_pin_set_dt(&ble_connected_led, false);
 
         busy_wait_ms(250);
         gpio_pin_set_dt(&pwr_on_led, false);
         gpio_pin_set_dt(&usb_connected_led, true);
-        gpio_pin_set_dt(&ble_connected_led, false);
+        gpio_pin_set_dt(&ble_connected_led, true);
         busy_wait_ms(500);
         gpio_pin_set_dt(&pwr_on_led, false);
         gpio_pin_set_dt(&usb_connected_led, false);

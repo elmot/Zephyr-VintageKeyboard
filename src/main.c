@@ -31,6 +31,7 @@ static struct kb_report report;
 static const uint8_t hid_report_desc[] = HID_KEYBOARD_REPORT_DESC();
 
 const struct device* hid_dev = DEVICE_DT_GET_ONE(zephyr_hid_device);
+const struct device* kscan_dev = DEVICE_DT_GET(DT_ALIAS(kscan));
 
 static void update_report(uint16_t code, int32_t value)
 {
@@ -197,6 +198,11 @@ int main(void)
 	if (!device_is_ready(hid_dev)) {
 		LOG_ERR("HID Device is not ready");
 		failure();
+	}
+
+	if (!device_is_ready(kscan_dev)) {
+		LOG_ERR("Kscan Device is not ready");
+		key_scan_failure();
 	}
 
 	int ret = hid_device_register(hid_dev,
