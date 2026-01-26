@@ -39,7 +39,7 @@ static void update_report(uint16_t code, int32_t value)
 	if (hid_code == 0) {
 		return;
 	}
-
+	vinkey_ble_handle_key(hid_code, (bool)value);
 	if (is_modifier(code)) {
 		if (value) {
 			report.modifier |= hid_code;
