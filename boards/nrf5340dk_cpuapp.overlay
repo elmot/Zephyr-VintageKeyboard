@@ -11,7 +11,7 @@
 		compatible = "gpio-leds";
 
 		caps_lock_led: caps_lock_led {
-			gpios = <&gpio0 13 GPIO_ACTIVE_LOW>;
+			gpios = <&gpio1 14 GPIO_ACTIVE_LOW>;
 			label = "External LED 0";
 		};
 
@@ -26,18 +26,18 @@
 		};
 
 		pwr_on_led: pwr_on_led {
-			gpios = <&gpio1 11 GPIO_ACTIVE_LOW>;
+			gpios = <&gpio1 10 GPIO_ACTIVE_LOW>;
 			label = "PWR LED";
 		};
 
-		ble_connected_led: ble_connected_led {
-			gpios = <&gpio1 10 GPIO_ACTIVE_LOW>;
-			label = "BLE LED";
+		usb_connected_led: usb_connected_led {
+			gpios = <&gpio1 11 GPIO_ACTIVE_LOW>;
+			label = "USB LED";
 		};
 
-		usb_connected_led: usb_connected_led {
+		ble_connected_led: ble_connected_led {
 			gpios = <&gpio1 12 GPIO_ACTIVE_LOW>;
-			label = "USB LED";
+			label = "BLE LED";
 		};
 	};
 	
