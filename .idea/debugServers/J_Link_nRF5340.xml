@@ -1,13 +1,13 @@
 <component name="DebugServers">
-  <jlink-debug-target name="SEGGER J-Link" uniqueID="1fbcc998-d99c-4412-8c62-cbb962d8f5f0" selected="true">
+  <jlink-debug-target name="J-Link nRF5340" uniqueID="c3c8c14d-a9c7-4ca4-9174-bdfef0f0e56f">
     <debugger version="1">
       <debugger kind="GDB" isBundled="true" />
       <env />
     </debugger>
     <gdbserver exe="C:\Program Files\SEGGER\JLink_V876\JLinkGDBServerCL.exe" />
     <console port="2334" />
-    <target device="nRF52840_xxAA" reset-before="false" />
-    <connection extended-remote="false" port="4444" warmup-ms="500" />
+    <target device="nRF5340_xxAA_APP" reset-before="false" />
+    <connection extended-remote="false" port="5444" warmup-ms="500" />
     <swo />
   </jlink-debug-target>
 </component>

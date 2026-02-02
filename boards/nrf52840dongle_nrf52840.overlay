@@ -12,17 +12,7 @@
 
 		caps_lock_led: caps_lock_led {
 			gpios = <&gpio0 13 GPIO_ACTIVE_LOW>;
-			label = "External LED 0";
-		};
-
-		ext_led1: led_1 {
-			gpios = <&gpio0 15 GPIO_ACTIVE_LOW>;
-			label = "External LED 1";
-		};
-
-		ext_led2: led_2 {
-			gpios = <&gpio0 17 GPIO_ACTIVE_LOW>;
-			label = "External LED 2";
+			label = "Caps Lock LED";
 		};
 
 		pwr_on_led: pwr_on_led {
@@ -31,14 +21,32 @@
 		};
 
 		ble_connected_led: ble_connected_led {
-			gpios = <&gpio0 22 GPIO_ACTIVE_LOW>;
+			gpios = <&gpio0 15 GPIO_ACTIVE_LOW>;
 			label = "BLE LED";
 		};
 
 		usb_connected_led: usb_connected_led {
-			gpios = <&gpio0 24 GPIO_ACTIVE_LOW>;
+			gpios = <&gpio0 17 GPIO_ACTIVE_LOW>;
 			label = "USB LED";
 		};
 	};
 
 };
+
+&pinctrl {
+	i2c1_default: i2c1_default {
+		group1 {
+			psels = <NRF_PSEL(TWIM_SDA, 0, 29)>,
+					<NRF_PSEL(TWIM_SCL, 0, 31)>;
+		};
+	};
+
+	i2c1_sleep: i2c1_sleep {
+		group1 {
+			psels = <NRF_PSEL(TWIM_SDA, 0, 29)>,
+					<NRF_PSEL(TWIM_SCL, 0, 31)>;
+			low-power-enable;
+		};
+	};
+};
+
