@@ -47,7 +47,7 @@
 		idle-mode = "scan";
 		poll-period-ms = <0>;
 		poll-timeout-ms = <0>;
-		debounce-down-ms = <0>;
+		debounce-down-ms = <1>;
 		debounce-up-ms = <0>;
 	};
 
